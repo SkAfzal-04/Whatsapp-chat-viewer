@@ -244,12 +244,12 @@ function render() {
     const sender = rest.split(":")[0].trim();
     const textMsg = rest.substring(sender.length + 1).trim();
 
-    if (!nameSet && !sender.toLowerCase().includes("you")) {
+    if (!nameSet && !sender.toLowerCase().includes("afzal")) {
       header.innerText = sender;
       nameSet = true;
     }
 
-    const isYou = sender.toLowerCase().includes("you");
+    const isYou = sender.toLowerCase().includes("afzal");
 
     const msg = document.createElement("div");
     msg.className = "message " + (isYou ? "right" : "left");
