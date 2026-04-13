@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>WhatsApp Chat Viewer Pro</title>
+
+<style>
+body {
+  margin: 0;
+  font-family: "Segoe UI", sans-serif;
+  background: #111b21;
+}
+
+.chat-container {
+  max-width: 500px;
+  margin: auto;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #0b141a;
+}
+
+/* Header */
+.header {
+  background: #202c33;
+  color: white;
+  padding: 12px;
+  font-size: 16px;
+}
+
+/* Top Bar */
+.top-bar {
+  display: flex;
+  gap: 6px;
+  padding: 10px;
+  background: #202c33;
+  align-items: center;
+}
+
+.search {
+  flex: 1;
+  padding: 6px;
+  border-radius: 6px;
+  border: none;
+  outline: none;
+}
+
+.btn {
+  background: #005c4b;
+  border: none;
+  color: white;
+  padding: 6px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+/* Chat */
+.chat {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  background-image: url('https://i.imgur.com/2nCt3Sbl.png');
+}
+
+/* Date (FIXED CENTER) */
+.date {
+  display: block;
+  width: fit-content;
+  margin: 12px auto;
+  font-size: 12px;
+  background: #202c33;
+  padding: 5px 12px;
+  border-radius: 12px;
+  color: #ccc;
+}
+
+/* Messages */
+.message {
+  max-width: 75%;
+  padding: 8px 10px;
+  margin: 6px 0;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.left {
+  background: #202c33;
+  color: white;
+}
+
+.right {
+  background: #005c4b;
+  color: white;
+  margin-left: auto;
+}
+
+.time {
+  font-size: 10px;
+  text-align: right;
+  margin-top: 4px;
+  color: #aaa;
+}
+
+/* System */
+.system {
+  text-align: center;
+  font-size: 12px;
+  color: #aaa;
+}
+
+/* Highlight */
+.highlight {
+  background: yellow;
+  color: black;
+}
+
+/* Responsive */
+@media(max-width: 600px) {
+  .chat-container {
+    max-width: 100%;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<div class="chat-container">
+
+  <div class="header" id="chatName">WhatsApp Chat</div>
+
+  <div class="top-bar">
+    <input type="file" id="fileInput" accept=".txt">
+    <input type="text" id="search" class="search" placeholder="Search message or date...">
+    <button class="btn" onclick="prevMatch()">â¬†</button>
+    <button class="btn" onclick="nextMatch()">â¬‡</button>
+  </div>
+
+  <div class="chat" id="chat"></div>
+
+</div>
+
+<script>
+
+let messages = [];
+let matches = [];
+let currentIndex = -1;
+
+document.getElementById("fileInput").addEventListener("change", function(e) {
+  const reader = new FileReader();
+  reader.onload = e => parseChat(e.target.result);
+  reader.readAsText(e.target.files[0]);
+});
+
+document.getElementById("search").addEventListener("input", function() {
+  highlightSearch(this.value.toLowerCase());
+});
+
+// CLEAN TEXT
+function cleanText(text) {
+  return text
+    .replace(/Ã¢â‚¬Â¯/g, " ")
+    .replace(/ -  - /g, " - ")
+    .replace(/:\s*AM/g, ":00 AM")
+    .replace(/:\s*PM/g, ":00 PM")
+    .replace(/\u200e/g, "");
+}
+
+// NEW MESSAGE DETECT
+function isNewMessage(line) {
+  return /^\d{1,2}\/\d{1,2}\/\d{2,4},/.test(line);
+}
+
+// FIXED DATE FORMAT (MM/DD/YYYY)
+function formatDate(dateStr) {
+  const [month, day, year] = dateStr.split("/");
+  const date = new Date(year, month - 1, day);
+
+  if (isNaN(date)) return dateStr;
+
+  return date.toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  });
+}
+
+// PARSE CHAT
+function parseChat(text) {
+  text = cleanText(text);
+  const lines = text.split(/\r?\n/);
+
+  let buffer = "";
+  messages = [];
+
+  lines.forEach(line => {
+    if (isNewMessage(line)) {
+      if (buffer) messages.push(buffer);
+      buffer = line;
+    } else {
+      buffer += "\n" + line;
+    }
+  });
+
+  if (buffer) messages.push(buffer);
+
+  render();
+}
+
+// RENDER
+function render() {
+  const chat = document.getElementById("chat");
+  const header = document.getElementById("chatName");
+
+  chat.innerHTML = "";
+  let lastDate = "";
+  let nameSet = false;
+
+  messages.forEach(full => {
+
+    const match = full.match(/^(\d{1,2}\/\d{1,2}\/\d{2,4}),\s*(\d{1,2}:\d{0,2}\s*[APMapm]{2})\s-\s(.+)$/);
+    if (!match) return;
+
+    const date = match[1];
+    const time = match[2];
+    const rest = match[3];
+
+    if (date !== lastDate) {
+      const d = document.createElement("div");
+      d.className = "date";
+      d.innerText = formatDate(date);
+      chat.appendChild(d);
+      lastDate = date;
+    }
+
+    if (!rest.includes(":")) {
+      const sys = document.createElement("div");
+      sys.className = "system";
+      sys.innerText = rest;
+      chat.appendChild(sys);
+      return;
+    }
+
+    const sender = rest.split(":")[0].trim();
+    const textMsg = rest.substring(sender.length + 1).trim();
+
+    if (!nameSet && !sender.toLowerCase().includes("you")) {
+      header.innerText = sender;
+      nameSet = true;
+    }
+
+    const isYou = sender.toLowerCase().includes("you");
+
+    const msg = document.createElement("div");
+    msg.className = "message " + (isYou ? "right" : "left");
+    msg.dataset.full = (date + " " + textMsg).toLowerCase();
+
+    msg.innerHTML = `
+      <span class="msg-text">${textMsg}</span>
+      <div class="time">${time}</div>
+    `;
+
+    chat.appendChild(msg);
+  });
+}
+
+// SEARCH + HIGHLIGHT
+function highlightSearch(query) {
+  matches = [];
+  currentIndex = -1;
+
+  const msgs = document.querySelectorAll(".message");
+
+  msgs.forEach(msg => {
+    const span = msg.querySelector(".msg-text");
+    const original = span.innerText;
+
+    span.innerHTML = original;
+
+    if (query && msg.dataset.full.includes(query)) {
+      const regex = new RegExp(`(${query})`, "gi");
+      span.innerHTML = original.replace(regex, `<span class="highlight">$1</span>`);
+      matches.push(msg);
+    }
+  });
+
+  if (matches.length > 0) {
+    currentIndex = 0;
+    scrollToMatch();
+  }
+}
+
+// NAVIGATION
+function scrollToMatch() {
+  if (matches[currentIndex]) {
+    matches[currentIndex].scrollIntoView({
+      behavior: "smooth",
+      block: "center"
+    });
+  }
+}
+
+function nextMatch() {
+  if (matches.length === 0) return;
+  currentIndex = (currentIndex + 1) % matches.length;
+  scrollToMatch();
+}
+
+function prevMatch() {
+  if (matches.length === 0) return;
+  currentIndex = (currentIndex - 1 + matches.length) % matches.length;
+  scrollToMatch();
+}
+
+</script>
+
+</body>
+</html>
